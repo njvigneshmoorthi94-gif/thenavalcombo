@@ -19,15 +19,16 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: 'temurin'
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: wrapper
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
 
       - name: Prepare debug keystore
         run: |
@@ -44,10 +45,18 @@ jobs:
           fi
 
       - name: Run unit tests
-        run: gradle :app:testDebugUnitTest --tests "com.example.ShopUnitTests" --no-daemon
+        run: ./gradlew :app:testDebugUnitTest --no-daemon --stacktrace
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: app/build/reports/tests/
+          if-no-files-found: ignore
 
       - name: Build Debug APK
-        run: gradle :app:assembleDebug --no-daemon
+        run: ./gradlew :app:assembleDebug --no-daemon --stacktrace
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
