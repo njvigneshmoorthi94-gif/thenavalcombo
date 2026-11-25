@@ -1,0 +1,403 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: deny everything by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- GLOBAL HELPERS ---
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isBootstrappedOwner() {
+      return isSignedIn() &&
+             ('email_verified' in request.auth.token) &&
+             request.auth.token.email_verified == true &&
+             ('email' in request.auth.token) &&
+             request.auth.token.email in ['njvigneshmoorthi94@gmail.com', 'mechmoorthi007@gmail.com'];
+    }
+
+    function userExists(uid) {
+      return exists(/databases/$(database)/documents/users/$(uid));
+    }
+
+    function userData(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data;
+    }
+
+    function isOwner() {
+      return isBootstrappedOwner() || (
+             isSignedIn() &&
+             userExists(request.auth.uid) &&
+             userData(request.auth.uid).active == true &&
+             userData(request.auth.uid).role == 'owner');
+    }
+
+    function isActiveStaff() {
+      return isOwner() || (
+             isSignedIn() &&
+             userExists(request.auth.uid) &&
+             userData(request.auth.uid).active == true &&
+             userData(request.auth.uid).role in ['owner', 'labour']);
+    }
+
+    function isValidTimestamp(ts) {
+      return ts is timestamp && ts <= request.time;
+    }
+
+    // --- VALIDATION HELPERS ---
+
+    function isValidUser(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.username is string && data.username.size() >= 2 && data.username.size() <= 50 &&
+             data.role in ['owner', 'labour'] &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 80 &&
+             (!('email' in data) || (data.email is string && data.email.size() <= 120)) &&
+             (!('passcodeHash' in data) || (data.passcodeHash is string && data.passcodeHash.size() <= 128)) &&
+             (!('passcodeSalt' in data) || (data.passcodeSalt is string && data.passcodeSalt.size() <= 64)) &&
+             data.active is bool &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidShop(data) {
+      return data.shopName is string && data.shopName.size() >= 1 && data.shopName.size() <= 100 &&
+             data.address is string && data.address.size() <= 250 &&
+             data.mobile is string && data.mobile.size() <= 20 &&
+             data.ownerName is string && data.ownerName.size() >= 1 && data.ownerName.size() <= 80 &&
+             data.email is string && data.email.size() <= 120 &&
+             data.whatsapp is string && data.whatsapp.size() <= 20 &&
+             (!('emailWebhookUrl' in data) || (data.emailWebhookUrl is string && data.emailWebhookUrl.size() <= 300 && (data.emailWebhookUrl == '' || data.emailWebhookUrl.matches('^https://.*')))) &&
+             (!('lastWeeklyReportKey' in data) || (data.lastWeeklyReportKey is string && data.lastWeeklyReportKey.size() <= 20)) &&
+             data.lowStockLimit is int && data.lowStockLimit >= 0 && data.lowStockLimit <= 10000 &&
+             data.dailyMorningAlert is bool &&
+             data.dailyNightAlert is bool &&
+             data.weeklyEmailReport is bool &&
+             data.updatedBy is string && data.updatedBy.size() >= 1 && data.updatedBy.size() <= 80 &&
+             data.updatedByUid is string && data.updatedByUid.size() >= 1 && data.updatedByUid.size() <= 128 &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidStock(data) {
+      return data.brand is string && data.brand.size() >= 1 && data.brand.size() <= 60 &&
+             data.partName is string && data.partName.size() >= 1 && data.partName.size() <= 80 &&
+             data.category is string && data.category.size() >= 1 && data.category.size() <= 60 &&
+             data.unitPrice is number && data.unitPrice >= 0 &&
+             (!('purchaseCost' in data) || (data.purchaseCost is number && data.purchaseCost >= 0)) &&
+             data.quantity is int && data.quantity >= 0 &&
+             data.lowStockLimit is int && data.lowStockLimit >= 0 &&
+             data.status in ['In Stock', 'Low Stock', 'Empty Stock'] &&
+             data.updatedBy is string && data.updatedBy.size() >= 1 && data.updatedBy.size() <= 80 &&
+             data.updatedByUid is string && data.updatedByUid.size() >= 1 && data.updatedByUid.size() <= 128 &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidOrder(data) {
+      return data.orderNumber is string && data.orderNumber.size() >= 1 && data.orderNumber.size() <= 40 &&
+             data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 100 &&
+             data.mobile is string && data.mobile.size() >= 5 && data.mobile.size() <= 20 &&
+             data.items is list && data.items.size() >= 1 && data.items.size() <= 20 &&
+             data.items[0] is map &&
+             data.brandSummary is string && data.brandSummary.size() >= 1 && data.brandSummary.size() <= 80 &&
+             data.partSummary is string && data.partSummary.size() >= 1 && data.partSummary.size() <= 120 &&
+             data.totalQuantity is int && data.totalQuantity >= 1 &&
+             data.totalAmount is number && data.totalAmount >= 0 &&
+             data.discount is number && data.discount >= 0 &&
+             data.finalAmount is number && data.finalAmount >= 0 &&
+             data.paidAmount is number && data.paidAmount >= 0 &&
+             data.balanceAmount is number && data.balanceAmount >= 0 &&
+             data.orderStatus in ['Completed', 'Unpaid', 'Partial Payment', 'Returned'] &&
+             data.paymentStatus in ['Paid', 'Unpaid', 'Partial', 'Refunded'] &&
+             data.labourName is string && data.labourName.size() >= 1 && data.labourName.size() <= 80 &&
+             data.createdBy is string && data.createdBy.size() >= 1 && data.createdBy.size() <= 80 &&
+             data.createdByUid is string && data.createdByUid.size() >= 1 && data.createdByUid.size() <= 128 &&
+             data.updatedBy is string && data.updatedBy.size() >= 1 && data.updatedBy.size() <= 80 &&
+             data.updatedByUid is string && data.updatedByUid.size() >= 1 && data.updatedByUid.size() <= 128 &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidPayment(data) {
+      return data.orderId is string && data.orderId.size() >= 1 && data.orderId.size() <= 128 &&
+             data.orderNumber is string && data.orderNumber.size() >= 1 && data.orderNumber.size() <= 40 &&
+             data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 100 &&
+             data.mobile is string && data.mobile.size() <= 20 &&
+             data.amount is number && data.amount > 0 &&
+             data.paymentMethod in ['Cash', 'UPI', 'Bank Transfer', 'Other'] &&
+             data.collectedBy is string && data.collectedBy.size() >= 1 && data.collectedBy.size() <= 80 &&
+             data.collectedByUid is string && data.collectedByUid.size() >= 1 && data.collectedByUid.size() <= 128 &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() <= 200)) &&
+             isValidTimestamp(data.paymentDate) &&
+             isValidTimestamp(data.createdAt);
+    }
+
+    function isValidReturn(data) {
+      return data.orderId is string && data.orderId.size() >= 1 && data.orderId.size() <= 128 &&
+             data.orderNumber is string && data.orderNumber.size() >= 1 && data.orderNumber.size() <= 40 &&
+             data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 100 &&
+             data.mobile is string && data.mobile.size() <= 20 &&
+             data.stockId is string && data.stockId.size() >= 1 && data.stockId.size() <= 128 &&
+             data.product is string && data.product.size() >= 1 && data.product.size() <= 140 &&
+             data.quantity is int && data.quantity >= 1 &&
+             data.reason is string && data.reason.size() >= 1 && data.reason.size() <= 300 &&
+             data.refundAmount is number && data.refundAmount >= 0 &&
+             data.status in ['Processed', 'Pending', 'Rejected'] &&
+             data.processedBy is string && data.processedBy.size() >= 1 && data.processedBy.size() <= 80 &&
+             data.processedByUid is string && data.processedByUid.size() >= 1 && data.processedByUid.size() <= 128 &&
+             isValidTimestamp(data.returnDate) &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidNotification(data) {
+      return data.type in ['instant_stock_alert', 'daily_stock_morning', 'daily_stock_night', 'weekly_report', 'manual_check'] &&
+             data.channel in ['email', 'whatsapp', 'system'] &&
+             data.message is string && data.message.size() >= 1 && data.message.size() <= 2000 &&
+             data.status in ['queued', 'sent', 'failed', 'requires_backend_config'] &&
+             data.recipient is string && data.recipient.size() <= 150 &&
+             isValidTimestamp(data.createdAt);
+    }
+
+    // --- COLLECTIONS ---
+
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isSignedIn() && (request.auth.uid == userId || isOwner());
+      allow list: if isOwner();
+
+      allow create: if isValidId(userId) &&
+                       isSignedIn() &&
+                       incoming().keys().hasAll(['userId', 'username', 'role', 'name', 'active', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'username', 'role', 'name', 'email', 'active', 'passcodeHash', 'passcodeSalt', 'createdAt', 'updatedAt']) &&
+                       isValidUser(incoming()) &&
+                       (
+                         isOwner() ||
+                         (
+                           request.auth.uid == userId &&
+                           incoming().userId == request.auth.uid &&
+                           (
+                             (isBootstrappedOwner() && incoming().role == 'owner' && incoming().active == true) ||
+                             (incoming().role == 'labour' && incoming().active == false)
+                           )
+                         )
+                       );
+
+      allow update: if isValidId(userId) &&
+                       isSignedIn() &&
+                       isValidUser(incoming()) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       (
+                         (isOwner() && incoming().diff(existing()).affectedKeys().hasOnly(['username', 'role', 'name', 'email', 'active', 'passcodeHash', 'passcodeSalt', 'updatedAt'])) ||
+                         (request.auth.uid == userId &&
+                          incoming().role == existing().role &&
+                          incoming().active == existing().active &&
+                          incoming().diff(existing()).affectedKeys().hasOnly(['username', 'name', 'email', 'passcodeHash', 'passcodeSalt', 'updatedAt']))
+                       );
+
+      allow delete: if isValidId(userId) && isOwner();
+    }
+
+    match /shops/{shopId} {
+      allow get: if isValidId(shopId) && isActiveStaff();
+      allow list: if isActiveStaff();
+
+      allow create: if isValidId(shopId) &&
+                       isOwner() &&
+                       incoming().keys().hasAll([
+                         'shopName', 'address', 'mobile', 'ownerName', 'email', 'whatsapp',
+                         'lowStockLimit', 'dailyMorningAlert', 'dailyNightAlert', 'weeklyEmailReport',
+                         'updatedBy', 'updatedByUid', 'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'shopName', 'address', 'mobile', 'ownerName', 'email', 'whatsapp',
+                         'emailWebhookUrl', 'lastWeeklyReportKey',
+                         'lowStockLimit', 'dailyMorningAlert', 'dailyNightAlert', 'weeklyEmailReport',
+                         'updatedBy', 'updatedByUid', 'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().updatedByUid == request.auth.uid &&
+                       isValidShop(incoming());
+
+      allow update: if isValidId(shopId) &&
+                       isOwner() &&
+                       isValidShop(incoming()) &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().updatedByUid == request.auth.uid &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'shopName', 'address', 'mobile', 'ownerName', 'email', 'whatsapp',
+                         'emailWebhookUrl', 'lastWeeklyReportKey',
+                         'lowStockLimit', 'dailyMorningAlert', 'dailyNightAlert', 'weeklyEmailReport',
+                         'updatedBy', 'updatedByUid', 'updatedAt'
+                       ]);
+
+      allow delete: if isValidId(shopId) && isOwner();
+    }
+
+    match /stocks/{stockId} {
+      allow get: if isValidId(stockId) && isActiveStaff();
+      allow list: if isActiveStaff();
+
+      allow create: if isValidId(stockId) &&
+                       isActiveStaff() &&
+                       incoming().keys().hasAll([
+                         'brand', 'partName', 'category', 'unitPrice', 'quantity',
+                         'lowStockLimit', 'status', 'updatedBy', 'updatedByUid', 'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'brand', 'partName', 'category', 'unitPrice', 'purchaseCost', 'quantity',
+                         'lowStockLimit', 'status', 'updatedBy', 'updatedByUid', 'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().updatedByUid == request.auth.uid &&
+                       isValidStock(incoming());
+
+      allow update: if isValidId(stockId) &&
+                       isActiveStaff() &&
+                       isValidStock(incoming()) &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().updatedByUid == request.auth.uid &&
+                       (
+                         isOwner() ||
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'brand', 'partName', 'category', 'unitPrice', 'purchaseCost',
+                           'quantity', 'lowStockLimit', 'status', 'updatedBy', 'updatedByUid', 'updatedAt'
+                         ])
+                       );
+
+      allow delete: if isValidId(stockId) && isOwner();
+    }
+
+    match /orders/{orderId} {
+      allow get: if isValidId(orderId) && isActiveStaff();
+      allow list: if isActiveStaff();
+
+      allow create: if isValidId(orderId) &&
+                       isActiveStaff() &&
+                       incoming().keys().hasAll([
+                         'orderNumber', 'customerName', 'mobile', 'items', 'brandSummary', 'partSummary',
+                         'totalQuantity', 'totalAmount', 'discount', 'finalAmount', 'paidAmount', 'balanceAmount',
+                         'orderStatus', 'paymentStatus', 'labourName', 'createdBy', 'createdByUid',
+                         'updatedBy', 'updatedByUid', 'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'orderNumber', 'customerName', 'mobile', 'items', 'brandSummary', 'partSummary',
+                         'totalQuantity', 'totalAmount', 'discount', 'finalAmount', 'paidAmount', 'balanceAmount',
+                         'orderStatus', 'paymentStatus', 'labourName', 'createdBy', 'createdByUid',
+                         'updatedBy', 'updatedByUid', 'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().createdByUid == request.auth.uid &&
+                       incoming().updatedByUid == request.auth.uid &&
+                       isValidOrder(incoming());
+
+      allow update: if isValidId(orderId) &&
+                       isActiveStaff() &&
+                       isValidOrder(incoming()) &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().createdByUid == existing().createdByUid &&
+                       incoming().updatedByUid == request.auth.uid &&
+                       (
+                         isOwner() ||
+                         (
+                           existing().orderStatus != 'Returned' &&
+                           incoming().diff(existing()).affectedKeys().hasOnly([
+                             'paidAmount', 'balanceAmount', 'orderStatus', 'paymentStatus',
+                             'updatedBy', 'updatedByUid', 'updatedAt'
+                           ])
+                         )
+                       );
+
+      allow delete: if isValidId(orderId) && isOwner();
+    }
+
+    match /payments/{paymentId} {
+      allow get: if isValidId(paymentId) && isActiveStaff();
+      allow list: if isActiveStaff();
+
+      allow create: if isValidId(paymentId) &&
+                       isActiveStaff() &&
+                       incoming().keys().hasAll([
+                         'orderId', 'orderNumber', 'customerName', 'mobile', 'amount',
+                         'paymentMethod', 'collectedBy', 'collectedByUid', 'paymentDate', 'createdAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'orderId', 'orderNumber', 'customerName', 'mobile', 'amount',
+                         'paymentMethod', 'collectedBy', 'collectedByUid', 'notes', 'paymentDate', 'createdAt'
+                       ]) &&
+                       incoming().collectedByUid == request.auth.uid &&
+                       isValidPayment(incoming()) &&
+                       exists(/databases/$(database)/documents/orders/$(incoming().orderId));
+
+      allow update: if isValidId(paymentId) &&
+                       isOwner() &&
+                       isValidPayment(incoming()) &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().orderId == existing().orderId;
+
+      allow delete: if isValidId(paymentId) && isOwner();
+    }
+
+    match /returns/{returnId} {
+      allow get: if isValidId(returnId) && isActiveStaff();
+      allow list: if isActiveStaff();
+
+      allow create: if isValidId(returnId) &&
+                       isActiveStaff() &&
+                       incoming().keys().hasAll([
+                         'orderId', 'orderNumber', 'customerName', 'mobile', 'stockId', 'product',
+                         'quantity', 'reason', 'refundAmount', 'status', 'processedBy', 'processedByUid',
+                         'returnDate', 'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'orderId', 'orderNumber', 'customerName', 'mobile', 'stockId', 'product',
+                         'quantity', 'reason', 'refundAmount', 'status', 'processedBy', 'processedByUid',
+                         'returnDate', 'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().processedByUid == request.auth.uid &&
+                       isValidReturn(incoming()) &&
+                       exists(/databases/$(database)/documents/orders/$(incoming().orderId));
+
+      allow update: if isValidId(returnId) &&
+                       isOwner() &&
+                       isValidReturn(incoming()) &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().orderId == existing().orderId &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['status', 'refundAmount', 'reason', 'updatedAt']);
+
+      allow delete: if isValidId(returnId) && isOwner();
+    }
+
+    match /notifications/{notificationId} {
+      allow get: if isValidId(notificationId) && isOwner();
+      allow list: if isOwner();
+
+      allow create: if isValidId(notificationId) &&
+                       isActiveStaff() &&
+                       incoming().keys().hasAll(['type', 'channel', 'message', 'status', 'recipient', 'createdAt']) &&
+                       incoming().keys().hasOnly(['type', 'channel', 'message', 'status', 'recipient', 'createdAt']) &&
+                       isValidNotification(incoming());
+
+      allow update: if isValidId(notificationId) &&
+                       isOwner() &&
+                       isValidNotification(incoming()) &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['status']);
+
+      allow delete: if isValidId(notificationId) && isOwner();
+    }
+  }
+}

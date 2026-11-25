@@ -1,0 +1,200 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Shop staff account with Owner or Labour role and activation status",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID matching document ID" },
+        "username": { "type": "string", "description": "Short staff username" },
+        "role": { "type": "string", "enum": ["owner", "labour"], "description": "Access role" },
+        "name": { "type": "string", "description": "Full display name" },
+        "email": { "type": "string", "description": "Google account email" },
+        "active": { "type": "boolean", "description": "Whether account is active for shop access" },
+        "passcodeHash": { "type": "string", "description": "Salted PBKDF2 staff credential hash" },
+        "passcodeSalt": { "type": "string", "description": "Random Base64 salt for staff credential hash" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp on creation" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp on update" }
+      },
+      "required": ["userId", "username", "role", "name", "active", "createdAt", "updatedAt"]
+    },
+    "Shop": {
+      "title": "Shop",
+      "description": "Shop profile, owner contact details, and notification schedule preferences",
+      "type": "object",
+      "properties": {
+        "shopName": { "type": "string" },
+        "address": { "type": "string" },
+        "mobile": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "email": { "type": "string" },
+        "whatsapp": { "type": "string" },
+        "emailWebhookUrl": { "type": "string" },
+        "lastWeeklyReportKey": { "type": "string" },
+        "lowStockLimit": { "type": "integer" },
+        "dailyMorningAlert": { "type": "boolean" },
+        "dailyNightAlert": { "type": "boolean" },
+        "weeklyEmailReport": { "type": "boolean" },
+        "updatedBy": { "type": "string" },
+        "updatedByUid": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "shopName", "address", "mobile", "ownerName", "email", "whatsapp",
+        "lowStockLimit", "dailyMorningAlert", "dailyNightAlert", "weeklyEmailReport",
+        "updatedBy", "updatedByUid", "createdAt", "updatedAt"
+      ]
+    },
+    "Stock": {
+      "title": "Stock",
+      "description": "Mobile spare part inventory item with pricing, quantity, and alert status",
+      "type": "object",
+      "properties": {
+        "brand": { "type": "string" },
+        "partName": { "type": "string" },
+        "category": { "type": "string" },
+        "unitPrice": { "type": "number" },
+        "purchaseCost": { "type": "number" },
+        "quantity": { "type": "integer" },
+        "lowStockLimit": { "type": "integer" },
+        "status": { "type": "string", "enum": ["In Stock", "Low Stock", "Empty Stock"] },
+        "updatedBy": { "type": "string" },
+        "updatedByUid": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "brand", "partName", "category", "unitPrice", "quantity",
+        "lowStockLimit", "status", "updatedBy", "updatedByUid", "createdAt", "updatedAt"
+      ]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Customer sales order with line items, payment tracking, and staff attribution",
+      "type": "object",
+      "properties": {
+        "orderNumber": { "type": "string" },
+        "customerName": { "type": "string" },
+        "mobile": { "type": "string" },
+        "items": { "type": "array", "description": "Bounded list (1..20) of ordered spare part line items" },
+        "brandSummary": { "type": "string" },
+        "partSummary": { "type": "string" },
+        "totalQuantity": { "type": "integer" },
+        "totalAmount": { "type": "number" },
+        "discount": { "type": "number" },
+        "finalAmount": { "type": "number" },
+        "paidAmount": { "type": "number" },
+        "balanceAmount": { "type": "number" },
+        "orderStatus": { "type": "string", "enum": ["Completed", "Unpaid", "Partial Payment", "Returned"] },
+        "paymentStatus": { "type": "string", "enum": ["Paid", "Unpaid", "Partial", "Refunded"] },
+        "labourName": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "createdByUid": { "type": "string" },
+        "updatedBy": { "type": "string" },
+        "updatedByUid": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "orderNumber", "customerName", "mobile", "items", "brandSummary", "partSummary",
+        "totalQuantity", "totalAmount", "discount", "finalAmount", "paidAmount", "balanceAmount",
+        "orderStatus", "paymentStatus", "labourName", "createdBy", "createdByUid",
+        "updatedBy", "updatedByUid", "createdAt", "updatedAt"
+      ]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Payment collection transaction linked to an order",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string" },
+        "orderNumber": { "type": "string" },
+        "customerName": { "type": "string" },
+        "mobile": { "type": "string" },
+        "amount": { "type": "number" },
+        "paymentMethod": { "type": "string", "enum": ["Cash", "UPI", "Bank Transfer", "Other"] },
+        "collectedBy": { "type": "string" },
+        "collectedByUid": { "type": "string" },
+        "notes": { "type": "string" },
+        "paymentDate": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "orderId", "orderNumber", "customerName", "mobile", "amount",
+        "paymentMethod", "collectedBy", "collectedByUid", "paymentDate", "createdAt"
+      ]
+    },
+    "ReturnRecord": {
+      "title": "ReturnRecord",
+      "description": "Product return and refund record linked to an order and stock item",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string" },
+        "orderNumber": { "type": "string" },
+        "customerName": { "type": "string" },
+        "mobile": { "type": "string" },
+        "stockId": { "type": "string" },
+        "product": { "type": "string" },
+        "quantity": { "type": "integer" },
+        "reason": { "type": "string" },
+        "refundAmount": { "type": "number" },
+        "status": { "type": "string", "enum": ["Processed", "Pending", "Rejected"] },
+        "processedBy": { "type": "string" },
+        "processedByUid": { "type": "string" },
+        "returnDate": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "orderId", "orderNumber", "customerName", "mobile", "stockId", "product",
+        "quantity", "reason", "refundAmount", "status", "processedBy", "processedByUid",
+        "returnDate", "createdAt", "updatedAt"
+      ]
+    },
+    "NotificationLog": {
+      "title": "NotificationLog",
+      "description": "Scheduled stock alert and weekly report dispatch log",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["instant_stock_alert", "daily_stock_morning", "daily_stock_night", "weekly_report", "manual_check"] },
+        "channel": { "type": "string", "enum": ["email", "whatsapp", "system"] },
+        "message": { "type": "string" },
+        "status": { "type": "string", "enum": ["queued", "sent", "failed", "requires_backend_config"] },
+        "recipient": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["type", "channel", "message", "status", "recipient", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Staff user accounts and roles"
+    },
+    "/shops/{shopId}": {
+      "schema": { "$ref": "#/entities/Shop" },
+      "description": "Shop profile and notification configuration"
+    },
+    "/stocks/{stockId}": {
+      "schema": { "$ref": "#/entities/Stock" },
+      "description": "Real-time mobile spare parts inventory"
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "Customer sales orders and balances"
+    },
+    "/payments/{paymentId}": {
+      "schema": { "$ref": "#/entities/Payment" },
+      "description": "Payment collection ledger"
+    },
+    "/returns/{returnId}": {
+      "schema": { "$ref": "#/entities/ReturnRecord" },
+      "description": "Product return and refund history"
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/NotificationLog" },
+      "description": "Automated email and WhatsApp dispatch audit logs"
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Thennaval Combo",
+  "description": "Shop management system for mobile spare parts stock, orders, payments, returns, and real-time multi-device sync.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

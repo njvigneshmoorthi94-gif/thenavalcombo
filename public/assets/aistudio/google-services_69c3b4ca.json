@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1007051740026",
+    "project_id": "thennaval-combo",
+    "storage_bucket": "thennaval-combo.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1007051740026:android:85bd7570e73e3377a3fcc3",
+        "android_client_info": {
+          "package_name": "com.aistudio.thennaval.kxmzqr"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAdOHGHBlODTph8erwZoV3eGKAor9dWLoI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
